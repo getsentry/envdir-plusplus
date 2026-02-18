@@ -256,7 +256,13 @@ func ParseEnvFile(filename string) ([]string, error) {
 				lines = append(lines, fmt.Sprintf("%s=%s", variable, data[1]))
 			} else {
 				// if only a pass-through variable is given, clean it up.
-				lines = append(lines, fmt.Sprintf("%s=%s", strings.TrimSpace(line), os.Getenv(line)))
+				// Validate the variable name to ensure it's a valid environment variable name
+				// and doesn't contain any special characters that could be exploited.
+				trimmedVar := strings.TrimSpace(line)
+				if strings.ContainsAny(trimmedVar, ";&|<>`$(){}[]!*?") {
+					return []string{}, ErrBadEnvVariable{fmt.Sprintf("variable '%s' contains invalid characters", trimmedVar)}
+				}
+				lines = append(lines, fmt.Sprintf("%s=%s", trimmedVar, os.Getenv(trimmedVar)))
 			}
 		}
 	}
