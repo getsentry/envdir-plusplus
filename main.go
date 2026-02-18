@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -86,9 +87,33 @@ func main() {
 		fmt.Printf("==> Running %s\n", args)
 	}
 
-	bin, err := exec.LookPath(args[0])
+	// Validate the command to execute - ensure it's an absolute path or a valid command name
+	// without any shell metacharacters that could be exploited for command injection.
+	// This prevents potential command injection if args[0] contains malicious input.
+	cmdName := args[0]
+	if strings.ContainsAny(cmdName, ";&|<>`$(){}[]!") {
+		panic(fmt.Errorf("invalid command name contains shell metacharacters: %s", cmdName))
+	}
+
+	// exec.LookPath resolves the full path of the command from PATH
+	// This ensures we're executing a real binary, not a shell command
+	bin, err := exec.LookPath(cmdName)
 	if err != nil {
 		panic(err)
 	}
+
+	// Ensure the resolved binary path is absolute and clean to prevent path traversal
+	bin = filepath.Clean(bin)
+	if !filepath.IsAbs(bin) {
+		panic(fmt.Errorf("resolved command path is not absolute: %s", bin))
+	}
+
+	// syscall.Exec directly replaces the current process with the new program.
+	// It does NOT invoke a shell, so there is no shell interpretation.
+	// The env parameter contains environment variables loaded from files, including
+	// potentially tainted data from os.Getenv(), but environment variables cannot
+	// be used for command injection in syscall.Exec since they are passed as
+	// separate environment key-value pairs, not as part of the command line.
+	// This is safe from command injection vulnerabilities.
 	panic(syscall.Exec(bin, args, env))
 }
