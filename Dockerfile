@@ -1,4 +1,4 @@
-FROM golang:1.13
+FROM golang:1.26
 
 RUN mkdir -p /usr/src/envdir++
 WORKDIR /usr/src/envdir++
